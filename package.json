@@ -49,7 +49,6 @@
   "author": "Jeff Eaton <jeff@autogram.is> (http://eaton.fyi)",
   "license": "MIT",
   "devDependencies": {
-    "@autogram/autograph": "github:autogram-is/autograph#main",
     "@ava/typescript": "^3.0.1",
     "@types/node": "^14.11.2",
     "ava": "^4.3.1",
@@ -61,6 +60,7 @@
     "xo": "^0.51.0"
   },
   "dependencies": {
+    "@autogram/autograph": "github:autogram-is/autograph#main",
     "@sindresorhus/is": "^5.3.0",
     "@types/better-sqlite3": "^7.6.0",
     "better-sqlite3": "^7.6.2"
