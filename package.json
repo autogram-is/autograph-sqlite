@@ -37,7 +37,8 @@
   },
   "ava": {
     "files": [
-      "tests/*"
+      "tests/**/*",
+      "!tests/fixtures"
     ],
     "typescript": {
       "rewritePaths": {
@@ -51,10 +52,9 @@
     "url": "git+https://github.com/autogram-is/autograph-sqlite.git"
   },
   "keywords": [
-    "typescript",
+    "graph",
     "nodejs",
-    "boilerplate",
-    "template"
+    "typescript"
   ],
   "author": "Jeff Eaton <jeff@autogram.is> (http://autogram.is/eaton/)",
   "license": "MIT",
