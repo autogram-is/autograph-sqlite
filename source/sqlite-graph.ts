@@ -1,4 +1,5 @@
 import is from "@sindresorhus/is";
+import { JsonObject } from 'type-fest';
 import DatabaseConstructor, {
   Database,
   Statement,
@@ -11,10 +12,20 @@ import {
   Reference,
   EntityFilter,
   Dictionary,
-  EdgeSelector,
+  Readable,
+  Mutable,
+  Persistable,
   Graph,
-  GraphStorage,
-  NodeSelector,
+  JsonNodes,
+  JsonEdges,
+  Uuid,
+  EdgeSet,
+  Match,
+  NodeSet,
+  isNode,
+  isNodeData,
+  isEdgeData,
+  isEdge,
 } from "@autogram/autograph";
 import { statements } from "./sql.js";
 
@@ -32,7 +43,7 @@ const sqliteGraphDefaults: SqliteGraphOptions = {
 
 export { Database, SqliteError, Statement, Options } from "better-sqlite3";
 
-export class SqliteGraph implements Graph, GraphStorage {
+export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
   config: SqliteGraphOptions = sqliteGraphDefaults;
   db!: Database;
 
@@ -50,6 +61,88 @@ export class SqliteGraph implements Graph, GraphStorage {
         console.log("hmmmm…");
       });
   }
+
+  /* Graph methods */
+
+  nodes(...criteria: Match<Node>[]): NodeSet<Node> {
+    throw new Error("Method not implemented.");
+  }
+
+  edges(...criteria: Match<Edge>[]): EdgeSet<Edge> {
+    throw new Error("Method not implemented.");
+  }
+
+  /* Mutable methods */
+  
+  add(input: Entity | Entity[], mode: 'insert' | 'upsert' = 'insert'): Mutable<Entity> {
+    let nodeStmt: Statement;
+    let edgeStmt: Statement;
+
+    if (!is.array(input)) input = [input];
+    if (mode === 'insert') {
+      nodeStmt = this.db.prepare(statements.node.insert);
+      edgeStmt = this.db.prepare(statements.edge.insert);  
+    } else {
+      nodeStmt = this.db.prepare(statements.node.upsert);
+      edgeStmt = this.db.prepare(statements.edge.upsert);  
+    }
+
+    for (let node of input) {
+      if (isNode(node)) {
+        let insertData = {
+          id: node.id,
+          type: node.type,
+          labels: JSON.stringify([...node.labels.values()]),
+          data: node.serialize()
+        }
+        nodeStmt.run(insertData);
+      }
+    }
+    for (let edge of input) {
+      if (isEdge(edge)) {
+        let insertData = {
+          id: edge.id,
+          source: edge.source,
+          predicate: edge.predicate,
+          target: edge.target,
+          data: edge.serialize()
+        }
+        edgeStmt.run(insertData);
+      }
+    }
+    return this;
+  }
+
+  remove(input: Reference | Reference[], cascade?: true): Mutable<Entity> {
+    if (!is.array(input)) input = [input];
+
+    throw new Error("Method not implemented.");
+  }
+  
+  set(input: Entity | Entity[]): Mutable<Entity> {
+    return this.add(input, 'upsert');
+  }
+
+  /* Readable methods */
+
+  has(input: Reference<Entity>): boolean {
+    const id = Entity.idFromReference(input);
+    const stmt = this.db.prepare(statements.blind.exists).pluck();
+    return stmt.get({ id: id }).count > 0;
+  }
+
+  get(input: Uuid): Entity | undefined {
+    const stmt = this.db.prepare(statements.blind.select).pluck();
+    const result = stmt.all({ id: input }).pop();
+    if (is.string(result)) {
+      const json = JSON.parse(result);
+      if (isNodeData(json)) return Node.load(json);
+      if (isEdgeData(json)) return Edge.load(json);
+    }
+    return undefined;
+  }
+
+  /* Persistable methods */
 
   async load(options?: Partial<SqliteGraphOptions>): Promise<void> {
     const config = {
@@ -88,135 +181,5 @@ export class SqliteGraph implements Graph, GraphStorage {
     this.db.exec(statements.edge.schema);
     this.db.exec(statements.node.indexes);
     this.db.exec(statements.edge.indexes);
-  }
-
-  set(input: Entity | Entity[]): this {
-    const entities = is.array(input) ? input : [input];
-    for (const n of entities.filter((ent: Entity) => ent instanceof Node)) {
-      this.db.prepare(statements.node.upsert).run({
-        id: n.id,
-        type: n.type,
-        labels: JSON.stringify(n.labels),
-        data: n.serialize(),
-      });
-    }
-
-    for (const edge of entities.filter((ent: Entity) => ent instanceof Edge)) {
-      this.db.prepare(statements.edge.upsert).run({
-        id: edge.id,
-        source: edge.source,
-        predicate: edge.predicate,
-        target: edge.target,
-        data: edge.serialize(),
-      });
-    }
-
-    return this;
-  }
-
-  getNode(id: string): Node | undefined {
-    const stmt: Statement = this.db.prepare(
-      `${statements.node.select} WHERE id = ?`,
-    );
-    const result = stmt.all(id)[0] as Dictionary;
-    if (!is.nullOrUndefined(result)) {
-      return Node.load(result.data as string);
-    }
-
-    return undefined;
-  }
-
-  getEdge(id: string): Edge | undefined {
-    const stmt: Statement = this.db.prepare(
-      `${statements.edge.select} WHERE id = ?`,
-    );
-    const result = stmt.all({ id })[0] as Dictionary;
-    if (!is.nullOrUndefined(result)) {
-      return Edge.load(result.data as string);
-    }
-
-    return undefined;
-  }
-
-  deleteNode(r: Reference<Node> | Array<Reference<Node>>): number {
-    if (!is.array(r)) r = [r];
-    const ids = new Set<string>(r.map((v) => Entity.idFromReference(v)));
-    const parameters = `'${[...ids].join("','")}'`;
-    return this.db.prepare(statements.node.delete).run(parameters).changes;
-  }
-
-  deleteEdge(r: Reference<Edge> | Array<Reference<Edge>>): number {
-    if (!is.array(r)) r = [r];
-    const ids = new Set<string>(r.map((v) => Entity.idFromReference(v)));
-    const parameters = `'${[...ids].join("','")}'`;
-    return this.db.prepare(statements.edge.delete).run(parameters).changes;
-  }
-
-  matchNodes<T extends Node = Node>(
-    r: NodeSelector,
-    fn?: EntityFilter<Node>,
-  ): T[] {
-    const criteria: string[] = [];
-
-    if (typeof r.label === "string") {
-      criteria.push(`label LIKE '%${r.label}%'`);
-    }
-
-    if (typeof r.type === "string") {
-      criteria.push(`type = '${r.type}'`);
-    }
-
-    let sql = statements.node.select;
-    if (criteria.length > 0) {
-      sql += ` WHERE ${criteria.join(" AND ")};`;
-    }
-
-    const customFunc = is.function_(fn) ? fn : () => true;
-
-    const stmt = this.db.prepare(sql);
-    return stmt
-      .pluck()
-      .all()
-      .map((data: string) => Node.load(data) as T)
-      .filter((edge: T) => customFunc(edge));
-  }
-
-  matchEdges<T extends Edge = Edge>(
-    r: EdgeSelector,
-    fn?: EntityFilter<Edge>,
-  ): T[] {
-    const criteria: string[] = [];
-
-    if (typeof r.predicate === "string") {
-      criteria.push(`predicate = '${r.predicate}'`);
-    }
-
-    if (typeof r.sourceOrTarget === "string") {
-      criteria.push(
-        `(source = '${r.sourceOrTarget}' OR target = '${r.sourceOrTarget}')`,
-      );
-    } else {
-      if (typeof r.source === "string") {
-        criteria.push(`source = '${r.source}'`);
-      }
-
-      if (typeof r.target === "string") {
-        criteria.push(`target = '${r.target}'`);
-      }
-    }
-
-    let sql = statements.edge.select;
-    if (criteria.length > 0) {
-      sql += ` WHERE ${criteria.join(" AND ")};`;
-    }
-
-    const customFunc = is.function_(fn) ? fn : () => true;
-
-    const stmt = this.db.prepare(sql);
-    return stmt
-      .pluck()
-      .all()
-      .map((data: string) => Edge.load(data) as T)
-      .filter((edge: T) => customFunc(edge));
   }
 }

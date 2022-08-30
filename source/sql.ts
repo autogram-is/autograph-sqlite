@@ -3,7 +3,8 @@ export const statements = {
     select: "SELECT data FROM node ",
     exists: "SELECT COUNT(1) FROM node WHERE id = @id",
     insert: `INSERT INTO node (id, type, data) 
-      VALUES(@id, @type, json(@data))`,
+      VALUES(@id, @type, @labels, json(@data))
+      ON CONFLICT(id) DO NOTHING`,
     update: `UPDATE node SET data = json(@data) WHERE id = @id;`,
     upsert: `INSERT INTO node (id, type, labels, data) VALUES(@id, @type, @labels, json(@data))
       ON CONFLICT(id) DO UPDATE SET labels = excluded.labels, data = excluded.data WHERE id = @id;`,
@@ -47,7 +48,11 @@ export const statements = {
       CREATE INDEX IF NOT EXISTS predicate_idx ON edge(predicate);`,
   },
   blind: {
-    exists: ``,
-    delete: ``,
+    exists: `SELECT COUNT(1) FROM node WHERE id = @id
+      UNION
+      SELECT COUNT(1) FROM edge WHERE id = @id`,
+    select: `SELECT data from node WHERE id = @id
+      UNION
+      SEELECT data from node WHERE id = @id`
   },
 };

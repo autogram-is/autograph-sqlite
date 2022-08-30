@@ -76,6 +76,7 @@
     "@autogram/autograph": "github:autogram-is/autograph#main",
     "@sindresorhus/is": "^5.3.0",
     "@types/better-sqlite3": "^7.6.0",
-    "better-sqlite3": "^7.6.2"
+    "better-sqlite3": "^7.6.2",
+    "type-fest": "^2.19.0"
   }
 }

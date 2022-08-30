@@ -1,23 +1,10 @@
-# Autogram Node Boilerplate 
-Just a simple starter template for a node project that's likely to be reused.
+# SQLite storage for graphlike JSON documents 
+A SQLite backend for Autograph; think of it as a halfway point between serializing 200MB of JSON and getting a real database server.
 
-# What it includes
+# What it provides
+First and forremost, there's a `SqlGraph` class that stores Autograph's nodes and edges in two big ol' tables full of JSON data. It exposes the same surface-level interface as `JsonGraph`, even using the same map structures under the hood, but all of its mutable methods write to the SQL database and all of its on-graph retrieval methods (including `nodes()` and `edges()` populate fresh collections from the database.
 
-- Typesript 4.7
-  - experimentalDecorators on
-  - esModuleInterop on
-- ES2020 module target
-- Code in `/source`, tests in `/tests`, compiled code in `/dist`
-- ava for ESM-friendly tests
-- xo + prettifier with a handful of tweaked rules
-  - Bracket spacing
-  - Two spaces, not tabs
-- Test and linter setup in package.json
-- vscode extension recommendations for JSDoc, xo integration, and git-graph
-- shx and npm-run-all for tidier cross-platform scripts
-- An extremely agressive `nuke` script that clears package.json, node_modules, and build before reinstalling and rebuilding everything.
+When `Match` arrays are passed into any of its filtering functions, `Predicate` matches are translated to SQL WHERE clauses; the results are loaded from the database and added to the in-memory node and edge collections. They're then run through any `EntityFilter` matches that were part of the `Match` set. As a result, all filters still work but Predicate filters will be more memory-efficient.
 
-Almost certain to be updated over time; earlier versions used GTS but it was a bit too all-encompassing.
-
-## Future Plans
-This setup is meant for node projects, but hopefully baking ESM in will allow easier expansion to browser-friendly libraries when we have a chance.
+## Potential pitfalls
+Because JsonGraph keeps _everything_ in memory, it's technically possible to manipulate references to nodes or edges, never bother calling `set()` on them, but still preserve the differences when `graph.save()` is called. No such luck with SqlGraph, unfortunately — if you modify any graph entities, remember to call `graph.set(myEntity)`. Doing it with a big batch of entities once you've finished up a large task is fine.
