@@ -181,5 +181,13 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
     this.db.exec(statements.edge.schema);
     this.db.exec(statements.node.indexes);
     this.db.exec(statements.edge.indexes);
+
+    // See https://stackoverflow.com/questions/58519714 for the gory details.
+    // It's not terribly efficient, but we're using this as a temporary shim to
+    // avoid complicating up WHERE clauses with json_each() subselects.
+    this.db.function('json_array_contains', (jsonArray: string, value: number | string): 0 | 1 => {
+      const haystack: Array<string | number> = JSON.parse(jsonArray);
+      return haystack.includes(value) ? 1 : 0;
+    });
   }
 }
