@@ -1,51 +1,183 @@
 import is from "@sindresorhus/is";
-import { Predicate, Operator, PredicateValue } from "@autogram/autograph";
+import {
+  Predicate,
+  PredicateComparisons,
+  PredicateMode,
+  PredicateStruct,
+  PredicateValue,
+} from "@autogram/autograph";
 
 type PredicateSqlClause = {
   sql: string;
-  args?: Array<number | string | boolean>;
+  args?: PredicateValue | PredicateValue[];
 };
 type PredicateSqlFunction = (
-  propName: string,
-  value: PredicateValue,
+  property: string,
+  value: unknown,
 ) => PredicateSqlClause;
 
 export const predicateToSql = (predicate: Predicate): PredicateSqlClause => {
-  const sqlFunction = predicateWhereClauses[predicate.operator];
+  const allSql: string[] = [];
+  let allArgs: PredicateValue[] = [];
 
-  if (is.undefined(sqlFunction)) {
-    throw new Error(`No test for '${predicate.operator}' exists`);
-  }
+  for (const operator in predicate.comparisons) {
+    const func: PredicateSqlFunction = predicateFunctions[operator];
+    if (is.undefined(func)) {
+      throw new Error(`Unknown operator '${operator}'`);
+    }
 
-  if (is.undefined(predicate.value)) {
-    if (["exists", "missing", "empty"].includes(predicate.operator)) {
-      predicate.value = false; // Assign a dummy value; those tests won't use it
-    } else {
-      throw new Error(
-        `Operator '${predicate.operator} requires comparison value`,
-      );
+    const { sql, args } = func(
+      predicate.propertyName,
+      predicate.comparisons[operator],
+    );
+    if (is.nonEmptyStringAndNotWhitespace(sql)) {
+      allSql.push(sql);
+    }
+
+    if (is.nonEmptyArray(args)) {
+      allArgs = [...allArgs, ...sql];
     }
   }
 
-  return sqlFunction(predicate.property, predicate.value);
+  if (allSql.length === 0) return { sql: "", args: [] };
+
+  let sql = "";
+  switch (predicate.mode) {
+    case "any":
+      sql = allSql.join(` OR \n`);
+      if (allSql.length > 1) sql = `(${sql})`;
+      break;
+    case "none":
+      sql = `NOT (${allSql.join(` OR \n`)})`;
+      break;
+    default: // 'all'
+      sql = allSql.join(` AND \n`);
+      if (allSql.length > 1) sql = `(${sql})`;
+      break;
+  }
+
+  return {
+    sql,
+    args: allArgs,
+  };
+};
+
+const predicateFunctions: Record<string, PredicateSqlFunction> = {
+  eq(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!(is.number(value) || is.string(value) || is.boolean(value)))
+      return { sql: "", args: [] };
+    return {
+      sql: propToColumn(propertyName) + " = ?",
+      args: wrapSingle(value),
+    };
+  },
+
+  gt(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.number(value)) return { sql: "", args: [] };
+    return {
+      sql: propToColumn(propertyName) + " > ?",
+      args: wrapSingle(value),
+    };
+  },
+
+  lt(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.number(value)) return { sql: "", args: [] };
+    return {
+      sql: propToColumn(propertyName) + " < ?",
+      args: wrapSingle(value),
+    };
+  },
+
+  bt(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.arrayLike<number>(value)) return { sql: "", args: [] };
+    const bounds: [number, number] = [value[0], value[1]];
+    return {
+      sql: `(${propToColumn(propertyName)} > ? AND ${propToColumn(
+        propertyName,
+      )} < ?)`,
+      args: bounds.sort(),
+    };
+  },
+
+  has(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!(is.number(value) || is.string(value))) return { sql: "", args: [] };
+    return {
+      sql: `json_array_contains(${propToColumn(propertyName)}, ?)) = 1`,
+      args: wrapSingle(value),
+    };
+  },
+
+  in(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.array(value) || is.emptyArray(value)) return { sql: "", args: [] };
+    if (!(is.arrayLike<number>(value) || is.arrayLike<string>(value)))
+      return { sql: "", args: [] };
+    const values: PredicateValue[] = [...value];
+    return {
+      sql: `${propToColumn(propertyName)} IN (${placeholder(value)})`,
+      args: values,
+    };
+  },
+
+  sw(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.string(value)) return { sql: "", args: [] };
+    return {
+      sql: `${propToColumn(propertyName)} LIKE ?`,
+      args: wrapSingle(value.toString() + "%"),
+    };
+  },
+
+  ew(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.string(value)) return { sql: "", args: [] };
+    return {
+      sql: `${propToColumn(propertyName)} LIKE ?`,
+      args: wrapSingle("%" + value.toString()),
+    };
+  },
+
+  exists(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.boolean(value)) return { sql: "", args: [] };
+    return {
+      sql: `${propToColumn(propertyName)} NOT NULL`,
+      args: [],
+    };
+  },
+
+  missing(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.boolean(value)) return { sql: "", args: [] };
+    return {
+      sql: `${propToColumn(propertyName)} IS ${value ? "NULL" : "NOT NULL"}`,
+      args: [],
+    };
+  },
+
+  empty(propertyName: string, value: unknown): PredicateSqlClause {
+    if (!is.boolean(value)) return { sql: "", args: [] };
+    if (propertyName === "labels") {
+      return {
+        sql: `${propToColumn(propertyName)} ${value ? "=" : "!="} '[]'`,
+        args: [],
+      };
+    }
+
+    return {
+      sql: `${propToColumn(propertyName)} ${value ? "=" : "!="} ''`,
+      args: [],
+    };
+  },
 };
 
 const wrapSingle = (
-  value: PredicateValue,
+  value: number | string | boolean | Array<number | string | boolean>,
 ): Array<number | string | boolean> => {
   return is.array(value) ? value : [value];
 };
 
-const propToColumn = (propName: string): string => {
-  if (["id", "source", "predicate", "target", "type"].includes(propName)) {
-    return propName;
+const propToColumn = (propertyName: string): string => {
+  if (["id", "source", "predicate", "target", "type"].includes(propertyName)) {
+    return propertyName;
   }
 
-  if (propName === "labels") {
-    return `json_extract(labels, '$')`;
-  }
-
-  return `json_extract(data, '$.${propName}')`;
+  return `json_extract(data, '$.${propertyName}')`;
 };
 
 const placeholder = (value: unknown): string => {
@@ -54,170 +186,4 @@ const placeholder = (value: unknown): string => {
   }
 
   return "?";
-};
-
-const predicateWhereClauses: Record<Operator, PredicateSqlFunction> = {
-  equals(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: propToColumn(propName) + " = ?",
-      args: wrapSingle(value),
-    };
-  },
-
-  notequals(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: propToColumn(propName) + " != ?",
-      args: wrapSingle(value),
-    };
-  },
-
-  greaterthan(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: propToColumn(propName) + " > ?",
-      args: wrapSingle(value),
-    };
-  },
-
-  lessthan(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: propToColumn(propName) + " < ?",
-      args: wrapSingle(value),
-    };
-  },
-
-  notgreaterthan(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: propToColumn(propName) + " <= ?",
-      args: wrapSingle(value),
-    };
-  },
-
-  notlessthan(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: propToColumn(propName) + " >= ?",
-      args: wrapSingle(value),
-    };
-  },
-
-  between(propName: string, value: PredicateValue): PredicateSqlClause {
-    if (is.nonEmptyArray(value) && is.number(value[0])) {
-      const min = Number(value.sort()[0]);
-      const max = Number(value[value.length - 1]);
-      return {
-        sql: `(${propToColumn(propName)} > ? AND ${propToColumn(
-          propName,
-        )} < ?)`,
-        args: [min, max],
-      };
-    }
-
-    return { sql: "", args: [] };
-  },
-
-  within(propName: string, value: PredicateValue): PredicateSqlClause {
-    if (is.nonEmptyArray(value) && is.number(value[0])) {
-      const min = Number(value.sort()[0]);
-      const max = Number(value[value.length - 1]);
-      return {
-        sql: `(${propToColumn(propName)} >= ? AND ${propToColumn(
-          propName,
-        )} <= ?)`,
-        args: [min, max],
-      };
-    }
-
-    return { sql: "", args: [] };
-  },
-
-  outside(propName: string, value: PredicateValue): PredicateSqlClause {
-    if (is.nonEmptyArray(value) && is.number(value[0])) {
-      const min = Number(value.sort()[0]);
-      const max = Number(value[value.length - 1]);
-      return {
-        sql: `(${propToColumn(propName)} < ? OR ${propToColumn(propName)} > ?)`,
-        args: [min, max],
-      };
-    }
-
-    return { sql: "", args: [] };
-  },
-
-  contains(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: `json_array_contains(${propToColumn(propName)}, ?)) = 1`,
-      args: wrapSingle(value),
-    };
-  },
-
-  excludes(propName: string, value: PredicateValue): PredicateSqlClause {
-    // Value not in property
-    return {
-      sql: `json_array_contains(${propToColumn(propName)}, ?)) = 0`,
-      args: wrapSingle(value),
-    };
-  },
-
-  in(propName: string, value: PredicateValue): PredicateSqlClause {
-    if (is.array(value)) {
-      return {
-        sql: `${propToColumn(propName)} IN (${placeholder(value)})`,
-        args: wrapSingle(value),
-      };
-    }
-
-    return { sql: "", args: [] };
-  },
-
-  notin(propName: string, value: PredicateValue): PredicateSqlClause {
-    if (is.array(value)) {
-      return {
-        sql: `${propToColumn(propName)} NOT IN (${placeholder(value)})`,
-        args: wrapSingle(value),
-      };
-    }
-
-    return { sql: "", args: [] };
-  },
-
-  startswith(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: `${propToColumn(propName)} LIKE ?`,
-      args: wrapSingle(value.toString() + "%"),
-    };
-  },
-
-  endswith(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: `${propToColumn(propName)} LIKE ?`,
-      args: wrapSingle("%" + value.toString()),
-    };
-  },
-
-  exists(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: `${propToColumn(propName)} NOT NULL`,
-      args: [],
-    };
-  },
-
-  missing(propName: string, value: PredicateValue): PredicateSqlClause {
-    return {
-      sql: `${propToColumn(propName)} IS NULL`,
-      args: [],
-    };
-  },
-
-  empty(propName: string, value: PredicateValue): PredicateSqlClause {
-    if (propName === "labels") {
-      return {
-        sql: `${propToColumn(propName)} = '[]'`,
-        args: [],
-      };
-    }
-
-    return {
-      sql: `${propToColumn(propName)} = ''`,
-      args: [],
-    };
-  },
 };

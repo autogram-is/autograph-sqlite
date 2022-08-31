@@ -30,14 +30,10 @@ Test("predicates render", (t) => {
 */
 
 test("predicate rendering", (t) => {
-  t.is(predicateToSql(where("id", "equals", UuidFactory.nil)).sql, "id = ?");
-  t.is(predicateToSql(where("id", "notequals", 1)).sql, "id != ?");
-  t.is(predicateToSql(
-    where("some.deep.property", "equals", 1)).sql,
-    "json_extract(data, '$.some.deep.property') = ?"
+  t.is(predicateToSql(where("id", { eq: UuidFactory.nil })).sql, "id = ?");
+  t.is(predicateToSql(where("id", { eq: 1 }, "none")).sql, "NOT (id = ?)");
+  t.is(
+    predicateToSql(where("some.deep.property", { eq: 1 })).sql,
+    "json_extract(data, '$.some.deep.property') = ?",
   );
-});
-
-test("broken edge cases", (t) => {
-  t.is(predicateToSql(where("id", "notequals", [0, 1, 2, 3])).args!.length, 4);
 });

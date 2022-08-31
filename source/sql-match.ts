@@ -1,11 +1,5 @@
 import is from "@sindresorhus/is";
-import {
-  Entity,
-  Match,
-  Predicate,
-  MatchMaker,
-  Operator,
-} from "@autogram/autograph";
+import { Entity, Match, Predicate, MatchMaker } from "@autogram/autograph";
 import { predicateToSql } from "./sql-predicate.js";
 
 type SqlClause = { sql: string; args?: Array<number | string | boolean> };
