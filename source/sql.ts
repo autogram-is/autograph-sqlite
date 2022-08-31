@@ -53,6 +53,6 @@ export const statements = {
       SELECT COUNT(1) FROM edge WHERE id = @id`,
     select: `SELECT data from node WHERE id = @id
       UNION
-      SEELECT data from node WHERE id = @id`
+      SEELECT data from node WHERE id = @id`,
   },
 };

@@ -1,9 +1,14 @@
-import is from '@sindresorhus/is';
-import { Entity,  Match, Predicate, MatchMaker, Operator } from "@autogram/autograph";
-import { predicateToSql } from './sql-predicate.js';
+import is from "@sindresorhus/is";
+import {
+  Entity,
+  Match,
+  Predicate,
+  MatchMaker,
+  Operator,
+} from "@autogram/autograph";
+import { predicateToSql } from "./sql-predicate.js";
 
-
-type sqlClause = { sql: string, args?: (number | string | boolean)[] };
+type SqlClause = { sql: string; args?: Array<number | string | boolean> };
 export class SqlMatchMaker<T extends Entity = Entity> extends MatchMaker<T> {
   match(input: T): boolean {
     return this.functionFilter(input);
@@ -23,12 +28,12 @@ export class SqlMatchMaker<T extends Entity = Entity> extends MatchMaker<T> {
     );
   }
 
-  toSql(): sqlClause {
-    let clauses: string[] = [];
-    let allArgs: (number | string | boolean)[] = [];
+  toSql(): SqlClause {
+    const clauses: string[] = [];
+    let allArgs: Array<number | string | boolean> = [];
 
-    for (let predicate of this.predicates) {
-      let { sql, args } = predicateToSql(predicate);
+    for (const predicate of this.predicates) {
+      const { sql, args } = predicateToSql(predicate);
       clauses.push(sql);
       if (args !== undefined && is.array(args)) {
         allArgs = [...allArgs, ...args];
@@ -39,7 +44,7 @@ export class SqlMatchMaker<T extends Entity = Entity> extends MatchMaker<T> {
       sql: clauses.join(`
        AND `),
       args: allArgs,
-    }
+    };
   }
 
   protected idFilter(input: T): boolean {

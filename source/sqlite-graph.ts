@@ -1,5 +1,5 @@
 import is from "@sindresorhus/is";
-import { JsonObject } from 'type-fest';
+import { JsonObject } from "type-fest";
 import DatabaseConstructor, {
   Database,
   Statement,
@@ -64,81 +64,84 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
 
   /* Graph methods */
 
-  nodes(...criteria: Match<Node>[]): NodeSet<Node> {
+  nodes(...criteria: Array<Match<Node>>): NodeSet {
     throw new Error("Method not implemented.");
   }
 
-  edges(...criteria: Match<Edge>[]): EdgeSet<Edge> {
+  edges(...criteria: Array<Match<Edge>>): EdgeSet {
     throw new Error("Method not implemented.");
   }
 
   /* Mutable methods */
-  
-  add(input: Entity | Entity[], mode: 'insert' | 'upsert' = 'insert'): Mutable<Entity> {
+
+  add(input: Entity | Entity[], mode: "insert" | "upsert" = "insert"): Mutable {
     let nodeStmt: Statement;
     let edgeStmt: Statement;
 
     if (!is.array(input)) input = [input];
-    if (mode === 'insert') {
+    if (mode === "insert") {
       nodeStmt = this.db.prepare(statements.node.insert);
-      edgeStmt = this.db.prepare(statements.edge.insert);  
+      edgeStmt = this.db.prepare(statements.edge.insert);
     } else {
       nodeStmt = this.db.prepare(statements.node.upsert);
-      edgeStmt = this.db.prepare(statements.edge.upsert);  
+      edgeStmt = this.db.prepare(statements.edge.upsert);
     }
 
-    for (let node of input) {
+    for (const node of input) {
       if (isNode(node)) {
-        let insertData = {
+        const insertData = {
           id: node.id,
           type: node.type,
           labels: JSON.stringify([...node.labels.values()]),
-          data: node.serialize()
-        }
+          data: node.serialize(),
+        };
         nodeStmt.run(insertData);
       }
     }
-    for (let edge of input) {
+
+    for (const edge of input) {
       if (isEdge(edge)) {
-        let insertData = {
+        const insertData = {
           id: edge.id,
           source: edge.source,
           predicate: edge.predicate,
           target: edge.target,
-          data: edge.serialize()
-        }
+          data: edge.serialize(),
+        };
         edgeStmt.run(insertData);
       }
     }
+
     return this;
   }
 
-  remove(input: Reference | Reference[], cascade?: true): Mutable<Entity> {
+  remove(input: Reference | Reference[], cascade?: true): Mutable {
     if (!is.array(input)) input = [input];
 
     throw new Error("Method not implemented.");
   }
-  
-  set(input: Entity | Entity[]): Mutable<Entity> {
-    return this.add(input, 'upsert');
+
+  set(input: Entity | Entity[]): Mutable {
+    return this.add(input, "upsert");
   }
 
   /* Readable methods */
 
-  has(input: Reference<Entity>): boolean {
+  has(input: Reference): boolean {
     const id = Entity.idFromReference(input);
     const stmt = this.db.prepare(statements.blind.exists).pluck();
-    return stmt.get({ id: id }).count > 0;
+    return stmt.get({ id }).count > 0;
   }
 
   get(input: Uuid): Entity | undefined {
     const stmt = this.db.prepare(statements.blind.select).pluck();
-    const result = stmt.all({ id: input }).pop();
+    const result: unknown = stmt.all({ id: input }).pop();
     if (is.string(result)) {
-      const json = JSON.parse(result);
+      const json = JSON.parse(result) as Dictionary;
       if (isNodeData(json)) return Node.load(json);
       if (isEdgeData(json)) return Edge.load(json);
     }
+
     return undefined;
   }
 
@@ -185,9 +188,12 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
     // See https://stackoverflow.com/questions/58519714 for the gory details.
     // It's not terribly efficient, but we're using this as a temporary shim to
     // avoid complicating up WHERE clauses with json_each() subselects.
-    this.db.function('json_array_contains', (jsonArray: string, value: number | string): 0 | 1 => {
-      const haystack: Array<string | number> = JSON.parse(jsonArray);
-      return haystack.includes(value) ? 1 : 0;
-    });
+    this.db.function(
+      "json_array_contains",
+      (jsonArray: string, value: number | string): 0 | 1 => {
+        const haystack = JSON.parse(jsonArray) as Array<string | number>;
+        return haystack.includes(value) ? 1 : 0;
+      },
+    );
   }
 }
