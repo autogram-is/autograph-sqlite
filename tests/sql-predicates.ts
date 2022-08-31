@@ -1,9 +1,10 @@
 import test from "ava";
-import { where } from "@autogram/autograph";
+import { UuidFactory, where } from "@autogram/autograph";
 import { SqlMatchMaker } from "../source/sql-match.js";
 import { predicateToSql } from "../source/sql-predicate.js";
 
-test("predicates render", (t) => {
+/*
+Test("predicates render", (t) => {
   const predicates = [
     where("some.property.name", "equals", 1),
     where("some.property.name", "notequals", 1),
@@ -24,4 +25,19 @@ test("predicates render", (t) => {
     where("some.property.name", "missing", 1),
     where("some.property.name", "empty", 1),
   ];
+});
+
+*/
+
+test("predicate rendering", (t) => {
+  t.is(predicateToSql(where("id", "equals", UuidFactory.nil)).sql, "id = ?");
+  t.is(predicateToSql(where("id", "notequals", 1)).sql, "id != ?");
+  t.is(predicateToSql(
+    where("some.deep.property", "equals", 1)).sql,
+    "json_extract(data, '$.some.deep.property') = ?"
+  );
+});
+
+test("broken edge cases", (t) => {
+  t.is(predicateToSql(where("id", "notequals", [0, 1, 2, 3])).args!.length, 4);
 });
