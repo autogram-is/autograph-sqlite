@@ -1,6 +1,5 @@
 import test from "ava";
 import { UuidFactory, where } from "@autogram/autograph";
-import { SqlMatchMaker } from "../source/sql-match.js";
 import { predicateToSql } from "../source/sql-predicate.js";
 
 /*
