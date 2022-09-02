@@ -2,7 +2,7 @@ export const statements = {
   node: {
     select: "SELECT data FROM node ",
     exists: "SELECT COUNT(1) FROM node WHERE id = @id",
-    insert: `INSERT INTO node (id, type, data) 
+    insert: `INSERT INTO node (id, type, labels, data) 
       VALUES(@id, @type, @labels, json(@data))
       ON CONFLICT(id) DO NOTHING`,
     update: `UPDATE node SET data = json(@data) WHERE id = @id;`,

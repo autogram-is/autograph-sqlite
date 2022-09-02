@@ -1,18 +1,24 @@
 import { where } from "@autogram/autograph";
-import { SqlMatchMaker } from "../../source/sql-match.js";
+import { Scion, Parent } from "./scion.js";
+import { SqliteGraph } from "../../source/index.js";
+import { JsonGraph } from "@autogram/autograph";
 
-const predicates = [
-  where("id", { eq: "uuid" }),
-  where("some.property.name", { gt: 1 }),
-  where("some.property.name", { lt: 1 }),
-  where("some.property.name", { bt: [0, 10] }),
-  where("some.property.name", { has: 1 }),
-  where("some.property.name", { in: [1, 2, 3, 4] }),
-  where("some.property.name", { sw: "hello" }),
-  where("some.property.name", { ew: "hello" }),
-  where("some.property.name", { exists: true }),
-  where("some.property.name", { empty: true }),
-];
+const dbFile = './tests/fixtures/hapsburgs.sqlite';
 
-const mm = new SqlMatchMaker(predicates);
-console.log(mm.toSql());
+(async () => {
+  const sql = new SqliteGraph({ filename: dbFile });
+
+  const kidsOfEmperors = sql
+    .nodes(where('title', { eq: 'Holy Roman Emperor' }))
+    .outbound(where('predicate', { eq: 'is_parent_of' }))
+    .targets();
+
+  for (const kid of kidsOfEmperors) {
+    if (kid instanceof Scion) {
+      console.log(
+        `${kid.name}, ${kid.title ?? ''} (${kid.birth ?? 0}-${kid.death ?? 0})`,
+      );
+    }
+  }
+
+})();

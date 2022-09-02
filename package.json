@@ -18,7 +18,7 @@
     "prepare": "run-s clean compile",
     "pretest": "run-s clean compile",
     "posttest": "npm run lint",
-    "scratch": "run-s clean compile fixtures; node ./dist/tests/fixtures/scratch.js"
+    "scratch": "run-s clean compile; node ./dist/tests/fixtures/scratch.js"
   },
   "files": [
     "dist/source/**/*"

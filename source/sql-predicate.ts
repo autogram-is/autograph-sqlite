@@ -9,7 +9,7 @@ import {
 
 type PredicateSqlClause = {
   sql: string;
-  args?: PredicateValue | PredicateValue[];
+  args: PredicateValue[];
 };
 type PredicateSqlFunction = (
   property: string,
@@ -18,7 +18,7 @@ type PredicateSqlFunction = (
 
 export const predicateToSql = (predicate: Predicate): PredicateSqlClause => {
   const allSql: string[] = [];
-  let allArgs: PredicateValue[] = [];
+  const allArgs: PredicateValue[] = [];
 
   for (const operator in predicate.comparisons) {
     const func: PredicateSqlFunction = predicateFunctions[operator];
@@ -35,7 +35,7 @@ export const predicateToSql = (predicate: Predicate): PredicateSqlClause => {
     }
 
     if (is.nonEmptyArray(args)) {
-      allArgs = [...allArgs, ...sql];
+      allArgs.push(...args);
     }
   }
 

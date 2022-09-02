@@ -57,8 +57,8 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
         this.initialize();
         this.setPerformanceMode();
       })
-      .catch(() => {
-        console.log("hmmmm…");
+      .catch((reason: Error) => {
+        console.log(reason);
       });
   }
 
@@ -74,18 +74,22 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
 
   /* Mutable methods */
 
-  add(input: Entity | Entity[], mode: "insert" | "upsert" = "insert"): Mutable {
+  add(input: Entity | Entity[]): SqliteGraph {
+    return this.set(input, false);
+  }
+
+  set(input: Entity | Entity[], overWriteExisting: boolean = true): SqliteGraph {
     let nodeStmt: Statement;
     let edgeStmt: Statement;
 
     if (!is.array(input)) input = [input];
-    if (mode === "insert") {
-      nodeStmt = this.db.prepare(statements.node.insert);
-      edgeStmt = this.db.prepare(statements.edge.insert);
-    } else {
+    if (overWriteExisting) {
       nodeStmt = this.db.prepare(statements.node.upsert);
       edgeStmt = this.db.prepare(statements.edge.upsert);
-    }
+    } else {
+      nodeStmt = this.db.prepare(statements.node.insert);
+      edgeStmt = this.db.prepare(statements.edge.insert);
+    } 
 
     for (const node of input) {
       if (isNode(node)) {
@@ -115,14 +119,10 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
     return this;
   }
 
-  remove(input: Reference | Reference[], cascade?: true): Mutable {
+  remove(input: Reference | Reference[], cascade?: true): SqliteGraph {
     if (!is.array(input)) input = [input];
 
     throw new Error("Method not implemented.");
-  }
-
-  set(input: Entity | Entity[]): Mutable {
-    return this.add(input, "upsert");
   }
 
   /* Readable methods */
