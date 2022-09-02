@@ -111,3 +111,7 @@ dist
 
 # Gonna try to avoid this for now.
 package-lock.json
+
+# Sqlite temp files
+*-shm
+*-wal
