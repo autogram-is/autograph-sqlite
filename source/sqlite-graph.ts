@@ -28,7 +28,7 @@ import {
   isEdge,
 } from "@autogram/autograph";
 import { statements } from "./sql.js";
-import { placeholder } from "./sql-predicate";
+import { placeholder } from "./sql-predicate.js";
 import { stat } from "fs";
 import { SqlMatchMaker } from "./sql-match.js";
 
