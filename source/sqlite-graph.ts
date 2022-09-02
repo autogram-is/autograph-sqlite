@@ -28,6 +28,9 @@ import {
   isEdge,
 } from "@autogram/autograph";
 import { statements } from "./sql.js";
+import { placeholder } from "./sql-predicate";
+import { stat } from "fs";
+import { SqlMatchMaker } from "./sql-match.js";
 
 export type SqliteGraphOptions = {
   filename: string;
@@ -64,12 +67,30 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
 
   /* Graph methods */
 
-  nodes(...criteria: Array<Match<Node>>): NodeSet {
-    throw new Error("Method not implemented.");
+  nodes(...criteria: Array<Match<Node>>): JsonNodes {
+    const matcher = new SqlMatchMaker<Node>(criteria);
+    const clauses = matcher.toSql();
+    const results = this.db
+      .prepare(`${statements.node.select} WHERE ${clauses.sql}`)
+      .pluck()
+      .all(clauses.args)
+      .map((data: string) => Node.load(data))
+      .filter(node => matcher.match(node));
+    
+    return new JsonNodes(this, results);
   }
 
-  edges(...criteria: Array<Match<Edge>>): EdgeSet {
-    throw new Error("Method not implemented.");
+  edges(...criteria: Array<Match<Edge>>): JsonEdges {
+    const matcher = new SqlMatchMaker<Edge>(criteria);
+    const clauses = matcher.toSql();
+    const results = this.db
+      .prepare(`${statements.edge.select} WHERE ${clauses.sql}`)
+      .pluck()
+      .all(clauses.args)
+      .map((data: string) => Edge.load(data))
+      .filter(edge => matcher.match(edge));
+    
+    return new JsonEdges(this, results);
   }
 
   /* Mutable methods */
@@ -121,8 +142,15 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
 
   remove(input: Reference | Reference[], cascade?: true): SqliteGraph {
     if (!is.array(input)) input = [input];
+    const ids = input.map(reference => Entity.idFromReference(reference));
 
-    throw new Error("Method not implemented.");
+    const edgeSql = `${statements.edge.delete} (${placeholder(ids)})`
+    this.db.prepare(edgeSql).run(ids);
+
+    const nodeSql = `${statements.node.delete} (${placeholder(ids)})`
+    this.db.prepare(nodeSql).run(ids);
+
+    return this;
   }
 
   /* Readable methods */

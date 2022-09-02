@@ -180,7 +180,7 @@ const propToColumn = (propertyName: string): string => {
   return `json_extract(data, '$.${propertyName}')`;
 };
 
-const placeholder = (value: unknown): string => {
+export const placeholder = (value: unknown): string => {
   if (is.array(value)) {
     return Array.from({ length: value.length }).fill("?").join(",");
   }
