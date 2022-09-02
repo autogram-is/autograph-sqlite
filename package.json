@@ -15,10 +15,9 @@
     "lint": "xo",
     "fix": "xo --fix",
     "compile": "tsc",
-    "prepare": "run-s clean compile fixtures",
-    "pretest": "run-s clean compile fixtures",
+    "prepare": "run-s clean compile",
+    "pretest": "run-s clean compile",
     "posttest": "npm run lint",
-    "fixtures": "shx cp ./tests/fixtures/*json ./dist/tests/fixtures/",
     "scratch": "run-s clean compile fixtures; node ./dist/tests/fixtures/scratch.js"
   },
   "files": [
