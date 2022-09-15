@@ -180,10 +180,9 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
       ...this.config,
       ...options,
     };
-    return new Promise((resolve) => {
-      this.db = DatabaseConstructor(config.filename, config.options);
-      resolve();
-    });
+
+    this.db = DatabaseConstructor(config.filename, config.options);
+    return Promise.resolve();
   }
 
   async save(options?: Partial<SqliteGraphOptions>): Promise<void> {
