@@ -25,7 +25,8 @@ export const statements = {
     select: "SELECT data FROM edge ",
     exists: "SELECT COUNT(1) FROM edge WHERE id = @id",
     insert: `INSERT INTO edge (id, source, target, predicate, data)
-      VALUES(@id, @source, @target, @predicate, json(@data))`,
+      VALUES(@id, @source, @target, @predicate, json(@data))
+      ON CONFLICT(id) DO NOTHING`,
     update: `UPDATE edge SET data = json(@data) WHERE id = @id;`,
     upsert: `INSERT INTO edge (id, source, predicate, target, data)
       VALUES(@id, @source, @predicate, @target, json(@data))
