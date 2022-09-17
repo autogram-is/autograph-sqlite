@@ -1,5 +1,4 @@
 import is from "@sindresorhus/is";
-import { JsonObject } from "type-fest";
 import DatabaseConstructor, {
   Database,
   Statement,
@@ -10,7 +9,6 @@ import {
   Node,
   Edge,
   Reference,
-  EntityFilter,
   Dictionary,
   Readable,
   Mutable,
@@ -19,9 +17,7 @@ import {
   JsonNodes,
   JsonEdges,
   Uuid,
-  EdgeSet,
   Match,
-  NodeSet,
   isNode,
   isNodeData,
   isEdgeData,
@@ -29,7 +25,6 @@ import {
 } from "@autogram/autograph";
 import { statements } from "./sql.js";
 import { placeholder } from "./sql-predicate.js";
-import { stat } from "fs";
 import { SqlMatchMaker } from "./sql-match.js";
 
 export type SqliteGraphOptions = {
@@ -186,7 +181,7 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
   }
 
   async save(options?: Partial<SqliteGraphOptions>): Promise<void> {
-    throw new Error("Method not implemented.");
+    console.log("Save method unecessary; will be used .");
   }
 
   async optimize(): Promise<void> {
