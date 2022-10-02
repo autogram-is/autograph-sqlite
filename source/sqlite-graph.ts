@@ -1,4 +1,5 @@
 import is from "@sindresorhus/is";
+import { JsonObject } from "type-fest";
 import DatabaseConstructor, {
   Database,
   Statement,
@@ -9,6 +10,7 @@ import {
   Node,
   Edge,
   Reference,
+  EntityFilter,
   Dictionary,
   Readable,
   Mutable,
@@ -17,7 +19,9 @@ import {
   JsonNodes,
   JsonEdges,
   Uuid,
+  EdgeSet,
   Match,
+  NodeSet,
   isNode,
   isNodeData,
   isEdgeData,
@@ -25,6 +29,7 @@ import {
 } from "@autogram/autograph";
 import { statements } from "./sql.js";
 import { placeholder } from "./sql-predicate.js";
+import { stat } from "fs";
 import { SqlMatchMaker } from "./sql-match.js";
 
 export type SqliteGraphOptions = {
@@ -69,7 +74,7 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
       .prepare(`${statements.node.select} WHERE ${clauses.sql}`)
       .pluck()
       .all(clauses.args)
-      .map((data: string) => Node.load(data))
+      .map((data: string) => Node.load(JSON.parse(data)))
       .filter(node => matcher.match(node));
     
     return new JsonNodes(this, results);
@@ -82,7 +87,7 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
       .prepare(`${statements.edge.select} WHERE ${clauses.sql}`)
       .pluck()
       .all(clauses.args)
-      .map((data: string) => Edge.load(data))
+      .map((data: string) => Edge.load(JSON.parse(data)))
       .filter(edge => matcher.match(edge));
     
     return new JsonEdges(this, results);
@@ -181,7 +186,7 @@ export class SqliteGraph implements Readable, Mutable, Persistable, Graph {
   }
 
   async save(options?: Partial<SqliteGraphOptions>): Promise<void> {
-    console.log("Save method unecessary; will be used .");
+    throw new Error("Method not implemented.");
   }
 
   async optimize(): Promise<void> {
